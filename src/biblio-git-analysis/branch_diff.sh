@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Source the configuration file
+source "$(dirname "$0")/config.sh"
+
 # Check if the old branch is provided as an argument
 if [ -z "$1" ]; then
     echo "Usage: $0 <old-branch>"
@@ -9,28 +12,6 @@ fi
 # Define the branches
 BRANCH_OLD="$1"
 BRANCH_NEW=$(git rev-parse --abbrev-ref HEAD)
-
-# Directory to store diff files and copies of changed/new files
-DIFF_DIR="diff"
-ATOMIC_DIFF_DIR="$DIFF_DIR/atomic"
-TINY_DIFF_DIR="$DIFF_DIR/tiny"
-SMALL_DIFF_DIR="$DIFF_DIR/small"
-MEDIUM_DIFF_DIR="$DIFF_DIR/medium"
-LARGE_DIFF_DIR="$DIFF_DIR/large"
-FILES_DIR="$DIFF_DIR/files"
-NEW_FILES_MD="$DIFF_DIR/NEW.md"
-UNCHANGED_FILES_MD="$DIFF_DIR/UNCHANGED.md"
-PERMISSION_CHANGED_MD="$DIFF_DIR/PERMISSION_CHANGED.md"
-LOGGER_SUBS_MD="$DIFF_DIR/LOGGER_SUBS.md"
-SUPERFICIAL_MD="$DIFF_DIR/SUPERFICIAL.md"
-DELETED_FILES_MD="$DIFF_DIR/DELETED.md"
-
-# Thresholds for categorizing changes
-ATOMIC_THRESHOLD=5    # Atomic changes: 1-5 lines
-TINY_THRESHOLD=20      # Tiny changes: 6-20 lines
-SMALL_THRESHOLD=50     # Small changes: 21-50 lines
-MEDIUM_THRESHOLD=250   # Medium changes: 51-250 lines
-# Large changes: anything above the medium threshold
 
 # Create the diff and files directories if they don't exist
 mkdir -p "$ATOMIC_DIFF_DIR"
@@ -43,14 +24,19 @@ mkdir -p "$FILES_DIR"
 # Initialize the markdown files
 echo "# New Files in $BRANCH_NEW Branch" > "$NEW_FILES_MD"
 echo "" >> "$NEW_FILES_MD"
+
 echo "# Unchanged Files in $BRANCH_NEW Branch" > "$UNCHANGED_FILES_MD"
 echo "" >> "$UNCHANGED_FILES_MD"
+
 echo "# Files with Permission Changes in $BRANCH_NEW Branch" > "$PERMISSION_CHANGED_MD"
 echo "" >> "$PERMISSION_CHANGED_MD"
+
 echo "# Files with Only Logger Subroutine Changes" > "$LOGGER_SUBS_MD"
 echo "" >> "$LOGGER_SUBS_MD"
+
 echo "# Files with Only Superficial Changes" > "$SUPERFICIAL_MD"
 echo "" >> "$SUPERFICIAL_MD"
+
 echo "# Deleted Files in $BRANCH_NEW Branch" > "$DELETED_FILES_MD"
 echo "" >> "$DELETED_FILES_MD"
 
