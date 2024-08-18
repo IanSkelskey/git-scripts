@@ -98,3 +98,21 @@ copy_file_to() {
     git show "$BRANCH_NEW:$file" > "$dest_dir/$(basename "$file")"
     echo "Copied $file to $dest_dir"
 }
+
+save_diff_and_copy_file() {
+	file="$1"
+	diff_content="$2"
+	
+	# Get the line count of the diff
+	line_count=$(echo "$diff_content" | grep -c '^[-+]')
+	
+	# Get the magnitude directory based on the line count
+	magnitude_dir=$(get_magnitude_directory "$line_count")
+	
+	# Save the diff to the appropriate magnitude directory
+	echo "$diff_content" > "$magnitude_dir/$file.diff"
+	echo "Saved diff for $file to $magnitude_dir"
+	
+	# Copy the file to the files directory
+	copy_file_to "$file" "$FILES_DIR/$(dirname "$file")"
+}
