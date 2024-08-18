@@ -74,26 +74,87 @@ is_permission_change_only() {
     fi
 }
 
+is_binary_file() {
+    file="$1"
+    
+    if [[ $file == *.png || $file == *.jpg || $file == *.gif || $file == *.ico ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+is_file_deleted() {
+    file_status="$1"
+    
+    if [[ $file_status == "D" ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+file_exists_on_branch() {
+    file="$1"
+    branch="$2"
+    
+    if git show "$branch:$file" &>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+contains_only_superficial_changes() {
+    diff_content="$1"
+    
+    # Get the diff ignoring whitespace
+    diff_content_no_whitespace=$(echo "$diff_content" | grep -v '^@@' | sed 's/^[+-]//')
+    
+    # Check if the diff contains only whitespace changes
+    if [[ -z $(echo "$diff_content_no_whitespace" | grep -v '^[[:space:]]*$') ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+get_magnitude_directory() {
+    line_count="$1"
+    
+    if [[ $line_count -le $ATOMIC_THRESHOLD ]]; then
+        echo "$ATOMIC_DIFF_DIR"
+    elif [[ $line_count -le $TINY_THRESHOLD ]]; then
+        echo "$TINY_DIFF_DIR"
+    elif [[ $line_count -le $SMALL_THRESHOLD ]]; then
+        echo "$SMALL_DIFF_DIR"
+    elif [[ $line_count -le $MEDIUM_THRESHOLD ]]; then
+        echo "$MEDIUM_DIFF_DIR"
+    else
+        echo "$LARGE_DIFF_DIR"
+    fi
+}
+
 # Create the diffs and copy the files
 while IFS= read -r line; do
     FILE_STATUS=$(echo "$line" | awk '{print $1}')
     FILE=$(echo "$line" | awk '{print $2}')
     
     # Skip binary files (images, etc.)
-    if [[ $FILE == *.png || $FILE == *.jpg || $FILE == *.gif || $FILE == *.ico ]]; then
-        echo "Skipping binary file: $FILE"
+    if is_binary_file "$FILE"; then
+        echo "Skipping binary file $FILE"
         continue
     fi
     
-    if [[ $FILE_STATUS == "D" ]]; then
-        # If the file is deleted, add it to DELETED.md
+    # Check if the file is deleted
+    if is_file_deleted "$FILE_STATUS"; then
         echo "- $FILE" >> "$DELETED_FILES_MD"
         echo "Added $FILE to $DELETED_FILES_MD"
         continue
     fi
     
     # Check if the file exists in the old branch
-    if git show "$BRANCH_OLD:$FILE" &>/dev/null; then
+    if file_exists_on_branch "$FILE" "$BRANCH_OLD"; then
         # Get the diff to check for specific changes
         DIFF=$(git diff "$BRANCH_OLD" "$BRANCH_NEW" -- "$FILE")
         
@@ -111,10 +172,9 @@ while IFS= read -r line; do
         fi
 
         # Get the diff ignoring whitespace to check for superficial changes
-        SUPERFICIAL_DIFF=$(git diff -w "$BRANCH_OLD" "$BRANCH_NEW" -- "$FILE")
-        if [[ -z $(echo "$SUPERFICIAL_DIFF" | grep -v '^@@') ]]; then
+        if contains_only_superficial_changes "$DIFF"; then
             echo "- $FILE" >> "$SUPERFICIAL_MD"
-            echo "Superficial changes detected in $FILE, skipping diff and copy."
+            echo "Superficial change detected in $FILE, skipping diff and copy."
             continue
         fi
 
@@ -122,18 +182,7 @@ while IFS= read -r line; do
         LINE_COUNT=$(echo "$SUPERFICIAL_DIFF" | grep -E "^\+" | wc -l)
 
         # Determine the magnitude of the change
-        if [ "$LINE_COUNT" -le "$ATOMIC_THRESHOLD" ]; then
-            DIFF_PATH="$ATOMIC_DIFF_DIR/${FILE//\//_}.diff"
-        elif [ "$LINE_COUNT" -le "$TINY_THRESHOLD" ]; then
-            DIFF_PATH="$TINY_DIFF_DIR/${FILE//\//_}.diff"
-        elif [ "$LINE_COUNT" -le "$SMALL_THRESHOLD" ]; then
-            DIFF_PATH="$SMALL_DIFF_DIR/${FILE//\//_}.diff"
-        elif [ "$LINE_COUNT" -le "$MEDIUM_THRESHOLD" ]; then
-            DIFF_PATH="$MEDIUM_DIFF_DIR/${FILE//\//_}.diff"
-        else
-            DIFF_PATH="$LARGE_DIFF_DIR/${FILE//\//_}.diff"
-        fi
-
+        DIFF_PATH=$(get_magnitude_directory "$LINE_COUNT")/"$FILE//\//_}.diff"
         # Save the diff to the appropriate file
         if [[ -n $SUPERFICIAL_DIFF ]]; then
             echo "$SUPERFICIAL_DIFF" > "$DIFF_PATH"
